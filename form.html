@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ส่งข้อความไป LINE Group</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    select, input, textarea, button {
+      display: block;
+      margin: 10px 0;
+      width: 100%;
+      max-width: 500px;
+      padding: 8px;
+    }
+    .group-info { font-size: 0.9em; color: gray; }
+    #linePreview {
+      background: #e5e5ea; border-radius: 10px; padding: 15px;
+      max-width: 400px; margin: 10px auto;
+      font-family: sans-serif; box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body>
+  <h2>📨 ส่งข้อความไปยัง LINE Group</h2>
+
+  <select id="groupSelect" onchange="updateGroupInfo(); updatePreview();">
+    <option value="">-- กรุณาเลือกกลุ่ม --</option>
+  </select>
+
+  <div class="group-info" id="groupInfo"></div>
+
+  <input type="text" id="message" placeholder="📩 ข้อความ" oninput="updatePreview()">
+  <input type="text" id="imageUrl" placeholder="🖼️ ลิงก์ภาพ (optional)" oninput="updatePreview()">
+  <textarea id="note" placeholder="📝 หมายเหตุ (optional)" oninput="updatePreview()"></textarea>
+
+  <div style="display: flex; gap: 10px; justify-content: center;">
+    <button type="button" onclick="loadSample()">📥 ทดสอบส่ง</button>
+    <button type="button" onclick="submitForm()">📢 เผยแพร่</button>
+  </div>
+
+  <div id="linePreview">
+    <div style="color: gray;">👥 กลุ่ม: <span id="previewGroupName">--</span></div>
+    <div id="previewMessages" style="margin-top: 10px;">
+      <div style="background: white; padding: 10px; border-radius: 10px; display: inline-block;">(ไม่มีข้อความ)</div>
+    </div>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    let groupData = [];
+
+    function loadGroups() {
+      fetch("groups.json").then(res => res.json()).then(data => {
+        groupData = data;
+        const select = document.getElementById("groupSelect");
+        data.forEach((row, i) => {
+          const option = document.createElement("option");
+          option.value = i;
+          option.text = row["ชื่อกอง"] + " - " + row["ชื่อสำนัก"];
+          select.appendChild(option);
+        });
+      });
+    }
+
+    function updateGroupInfo() {
+      const index = document.getElementById("groupSelect").value;
+      const infoBox = document.getElementById("groupInfo");
+      if (index !== "") {
+        const row = groupData[index];
+        infoBox.innerHTML = `
+          🏢 สำนัก: ${row["ชื่อสำนัก"]}<br>
+          🏛️ กอง: ${row["ชื่อกอง"]}<br>
+          👤 ผู้ประสานงาน: ${row["ผู้ประสานงาน"]}<br>
+          ⏰ เวลา: ${row["ช่วงเวลา"]}<br>
+          🔁 แจ้งเตือน: ${row["เปิด-ปิด (กลุ่ม)"] === "✅" ? "เปิด" : "ปิด"}
+        `;
+      } else {
+        infoBox.innerHTML = "";
+      }
+    }
+
+    function updatePreview() {
+      const msg = document.getElementById("message").value;
+      const img = document.getElementById("imageUrl").value;
+      const note = document.getElementById("note").value;
+      const index = document.getElementById("groupSelect").value;
+      const previewBox = document.getElementById("previewMessages");
+      const groupName = document.getElementById("previewGroupName");
+
+      if (index !== "") {
+        groupName.textContent = groupData[index]["ชื่อกอง"] + " (" + groupData[index]["ชื่อสำนัก"] + ")";
+      }
+
+      let html = "";
+      if (msg.trim()) html += `<div style="background:white;padding:10px;border-radius:10px;display:inline-block;margin-bottom:5px;">${msg}</div>`;
+      if (img.trim()) html += `<div><img src="${img}" style="max-width:100%;border-radius:10px;"></div>`;
+      if (note.trim()) html += `<div style="font-size:0.85em;color:gray;">📝 หมายเหตุ: ${note}</div>`;
+      if (!html) html = `<div style="background:white;padding:10px;border-radius:10px;display:inline-block;">(ไม่มีข้อความ)</div>`;
+
+      previewBox.innerHTML = html;
+    }
+
+    function loadSample() {
+      document.getElementById("message").value = "📢 ตัวอย่างข้อความสำหรับทดสอบระบบ";
+      document.getElementById("imageUrl").value = "https://www.training.com.au/wp-content/uploads/Full-Stack-Developer-1.jpeg";
+      document.getElementById("note").value = "📝 หมายเหตุ: ส่งทดสอบโดยผู้ใช้งาน";
+      if (document.getElementById("groupSelect").options.length > 1) {
+        document.getElementById("groupSelect").selectedIndex = 1;
+        updateGroupInfo();
+      }
+      updatePreview();
+    }
+
+    function submitForm() {
+      const index = document.getElementById("groupSelect").value;
+      if (index === "") return alert("กรุณาเลือกกลุ่ม");
+
+      const row = groupData[index];
+      if (row["เปิด-ปิด (กลุ่ม)"] !== "✅") return alert("กลุ่มนี้ปิดรับแจ้งเตือน");
+
+      const now = new Date();
+      const time = now.toTimeString().substring(0,5);
+      const [start, end] = row["ช่วงเวลา"].split("–");
+      if (time < start || time > end) {
+        alert(`⏰ อยู่นอกช่วงเวลาแจ้งเตือนที่กำหนด (${start} - ${end})`);
+        return;
+      }
+
+      const payload = {
+        message: document.getElementById("message").value,
+        groupId: row["LINE Group ID"],
+        imageFullsize: document.getElementById("imageUrl").value,
+        imageThumbnail: document.getElementById("imageUrl").value,
+        note: document.getElementById("note").value,
+        lcat: row["LCAT"],
+        timestamp: now.toISOString()
+      };
+
+      fetch("submit.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).then(r => r.text()).then(res => {
+        document.getElementById("result").innerHTML = `<p style="color:green;">✅ ส่งสำเร็จ</p>`;
+      }).catch(err => {
+        document.getElementById("result").innerHTML = `<p style="color:red;">❌ ${err}</p>`;
+      });
+    }
+
+    window.onload = loadGroups;
+  </script>
+</body>
+</html>
