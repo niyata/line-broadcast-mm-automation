@@ -1,0 +1,4 @@
+const CONFIG = {
+  SHEET_NAME: "Data",
+  DRIVE_FOLDER_ID: "YOUR_FOLDER_ID_HERE"
+};

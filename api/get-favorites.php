@@ -1,0 +1,1 @@
+<!-- api/get-favorites.php -->
